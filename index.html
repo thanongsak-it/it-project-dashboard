@@ -507,4 +507,4 @@ function renderPhase(tasks) {
   phases.slice(0,10).forEach((ph,i)=>{
     var {t,d}=byP[ph], pct=Math.round(d/t*100), color=PhC[i%PhC.length], label=ph.length>35?ph.slice(0,35)+'...':ph;
     var div=document.createElement('div'); div.className='phase-item';
-    div.innerHTML='<div class="phase-hdr"><span>'+label+'</span><span class="phase-pct" style="color:'+color+'">'+pct+'% ('+d+'/'+t+')</span></div><div class="phase-bar"><div class="phase-fill" style="width:'+pct+'%;background:'+color+'"></div></div>'
+    div.innerHTML='<div class="phase-hdr"><span>'+label+'</span><span class="phase-pct" style="color:'+color+'">'+pct+'% ('+d+'/'+t+')</span></div><div class="phase-bar"><div class="phase-fill" style="width:'+pct+'%;background:'+color+'"></div></div>'<!-- deploy Tue May 19 09:21:27 UTC 2026 -->

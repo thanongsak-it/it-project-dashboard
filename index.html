@@ -31,8 +31,7 @@
     .login-input {
       width:100%; padding:12px 14px; border:1.5px solid #e2e8f0;
       border-radius:8px; font-size:15px; font-family:inherit;
-      outline:none; margin-bottom:14px; letter-spacing:.1em;
-      transition:border-color .2s;
+      outline:none; margin-bottom:14px; letter-spacing:.1em; transition:border-color .2s;
     }
     .login-input:focus { border-color:#2563eb; }
     .login-btn {
@@ -40,10 +39,14 @@
       border:none; border-radius:8px; font-size:15px; font-weight:700;
       cursor:pointer; font-family:inherit; transition:background .2s;
     }
-    .login-btn:hover   { background:#1d4ed8; }
-    .login-btn:active  { background:#1e40af; }
+    .login-btn:hover  { background:#1d4ed8; }
     .login-err { color:#dc2626; font-size:13px; margin-top:10px; min-height:18px; }
-    .login-spinner { display:none; width:18px; height:18px; border:2px solid rgba(255,255,255,.4); border-top-color:white; border-radius:50%; animation:spin .7s linear infinite; margin:0 auto; }
+    .logout-btn {
+      background:rgba(255,255,255,.15); border:1px solid rgba(255,255,255,.3);
+      color:white; border-radius:99px; padding:5px 14px; font-size:12px;
+      cursor:pointer; font-family:inherit; font-weight:600; transition:background .2s;
+    }
+    .logout-btn:hover { background:rgba(255,255,255,.25); }
 
     /* ── Loading ── */
     #loading { display:flex; flex-direction:column; align-items:center; justify-content:center; min-height:100vh; gap:14px; }
@@ -67,12 +70,6 @@
     .page-header .upd { font-size:11px; opacity:.5; margin-top:6px; }
     .header-row { display:flex; justify-content:space-between; align-items:flex-start; gap:16px; flex-wrap:wrap; }
     .header-badge { background:rgba(255,255,255,.15); border-radius:99px; padding:4px 14px; font-size:12px; white-space:nowrap; align-self:center; }
-    .logout-btn {
-      background:rgba(255,255,255,.15); border:1px solid rgba(255,255,255,.3);
-      color:white; border-radius:99px; padding:5px 14px; font-size:12px;
-      cursor:pointer; font-family:inherit; font-weight:600; transition:background .2s;
-    }
-    .logout-btn:hover { background:rgba(255,255,255,.25); }
 
     /* ── Filter bar ── */
     .filter-bar { background:white; border-bottom:1px solid #e2e8f0; padding:14px 28px; }
@@ -167,8 +164,7 @@
     <div class="login-title">IT Project Dashboard</div>
     <div class="login-sub">กรุณาใส่ Password เพื่อเข้าใช้งาน</div>
     <input id="login-pw" class="login-input" type="password" placeholder="Password" autocomplete="current-password" />
-    <button class="login-btn" id="login-btn" onclick="doLogin()">เข้าสู่ระบบ</button>
-    <div class="login-spinner" id="login-spin"></div>
+    <button class="login-btn" onclick="doLogin()">เข้าสู่ระบบ</button>
     <div class="login-err" id="login-err"></div>
   </div>
 </div>
@@ -190,10 +186,8 @@
         <div class="sub">IT Project Management &middot; All Projects</div>
         <div class="upd" id="upd-time"></div>
       </div>
-      <div style="display:flex;gap:10px;align-items:center">
-        <div class="header-badge" id="count-badge">— tasks</div>
+      <div class="header-badge" id="count-badge">— tasks</div>
         <button class="logout-btn" onclick="doLogout()">🚪 Logout</button>
-      </div>
     </div>
   </div>
 
@@ -303,34 +297,25 @@
 <script>
 /* ── Auth ── */
 var SESSION_KEY = 'itdash_token';
-
 function getToken() { return sessionStorage.getItem(SESSION_KEY); }
 
-async function doLogin() {
+function doLogin() {
   var pw  = document.getElementById('login-pw').value.trim();
   var err = document.getElementById('login-err');
-  var btn = document.getElementById('login-btn');
-  var spn = document.getElementById('login-spin');
   if (!pw) { err.textContent = 'กรุณาใส่ Password'; return; }
-
-  btn.style.display = 'none'; spn.style.display = 'block'; err.textContent = '';
-  try {
-    var res = await fetch('/api/auth', {
-      method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ password: pw })
-    });
-    var data = await res.json();
+  err.textContent = '';
+  fetch('/api/auth', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ password: pw })
+  }).then(function(r){ return r.json(); }).then(function(data){
     if (data.ok) {
       sessionStorage.setItem(SESSION_KEY, data.token);
       document.getElementById('login-overlay').style.display = 'none';
       main();
     } else {
-      err.textContent = '❌ Password ไม่ถูกต้อง';
+      err.textContent = '\u274C Password \u0e44\u0e21\u0e48\u0e16\u0e39\u0e01\u0e15\u0e49\u0e2d\u0e07';
     }
-  } catch(e) {
-    err.textContent = '❌ เกิดข้อผิดพลาด กรุณาลองใหม่';
-  }
-  btn.style.display = 'block'; spn.style.display = 'none';
+  }).catch(function(){ err.textContent = '\u274C \u0e40\u0e01\u0e34\u0e14\u0e02\u0e49\u0e2d\u0e1c\u0e34\u0e14\u0e1e\u0e25\u0e32\u0e14 \u0e25\u0e2d\u0e07\u0e43\u0e2b\u0e21\u0e48'; });
 }
 
 function doLogout() {
@@ -338,15 +323,9 @@ function doLogout() {
   location.reload();
 }
 
-/* Allow pressing Enter in password field */
 document.addEventListener('DOMContentLoaded', function() {
-  var pwInput = document.getElementById('login-pw');
-  if (pwInput) {
-    pwInput.addEventListener('keydown', function(e) {
-      if (e.key === 'Enter') doLogin();
-    });
-  }
-  /* Auto-check session on page load */
+  var pw = document.getElementById('login-pw');
+  if (pw) pw.addEventListener('keydown', function(e){ if(e.key==='Enter') doLogin(); });
   if (getToken()) {
     document.getElementById('login-overlay').style.display = 'none';
     main();
@@ -507,4 +486,75 @@ function renderPhase(tasks) {
   phases.slice(0,10).forEach((ph,i)=>{
     var {t,d}=byP[ph], pct=Math.round(d/t*100), color=PhC[i%PhC.length], label=ph.length>35?ph.slice(0,35)+'...':ph;
     var div=document.createElement('div'); div.className='phase-item';
-    div.innerHTML='<div class="phase-hdr"><span>'+label+'</span><span class="phase-pct" style="color:'+color+'">'+pct+'% ('+d+'/'+t+')</span></div><div class="phase-bar"><div class="phase-fill" style="width:'+pct+'%;background:'+color+'"></div></div>'<!-- deploy Tue May 19 09:21:27 UTC 2026 -->
+    div.innerHTML='<div class="phase-hdr"><span>'+label+'</span><span class="phase-pct" style="color:'+color+'">'+pct+'% ('+d+'/'+t+')</span></div><div class="phase-bar"><div class="phase-fill" style="width:'+pct+'%;background:'+color+'"></div></div>';
+    cont.appendChild(div);
+  });
+}
+function renderAssigneeChart(tasks) {
+  destroyChart('assignee');
+  var counts={};
+  tasks.filter(t=>t.status!=='Complete').forEach(t=>{(t.assignees||[]).forEach(n=>{counts[n]=(counts[n]||0)+1;});});
+  var L=Object.keys(counts).filter(n=>n!=='Unknown'); if(!L.length) return;
+  charts.assignee=new Chart(document.getElementById('c-assignee'),{type:'bar',data:{labels:L,datasets:[{data:L.map(l=>counts[l]),backgroundColor:PP,borderRadius:5,borderSkipped:false}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>' '+c.raw+' active tasks'}}},scales:{x:{ticks:{font:{size:13}}},y:{ticks:{font:{size:11},stepSize:1},grid:{color:'#f1f5f9'}}}}});
+}
+
+function sBadge(s){if(!s)return'bs-notstart';if(s==='Blocked')return'bs-blocked';if(s==='In Progress')return'bs-inprog';if(s==='Complete')return'bs-complete';if(s.includes('Pending'))return'bs-pending';return'bs-notstart';}
+function pBadge(p){if(!p)return'';return 'bp-'+p.toLowerCase();}
+
+function setView(v) {
+  tableView=v;
+  document.getElementById('btn-all').className   = v==='all'    ? 'active' : '';
+  document.getElementById('btn-urgent').className= v==='urgent' ? 'active' : '';
+  document.getElementById('tbl-title').textContent= v==='urgent' ? '🔥 Urgent & Blocked' : '📋 All Tasks';
+  renderTable(filteredTasks);
+}
+
+function renderTable(tasks) {
+  var list;
+  if (tableView==='urgent') {
+    list=tasks.filter(t=>t.status==='Blocked'||(t.status==='In Progress'&&(t.priority==='Critical'||t.priority==='High'))||(t.status&&t.status.includes('Pending')));
+    list.sort((a,b)=>{var os={Blocked:0,'In Progress':1};var op={Critical:0,High:1,Medium:2,Low:3};return((os[a.status]||2)*10+(op[a.priority]||4))-((os[b.status]||2)*10+(op[b.priority]||4));});
+  } else {
+    list=tasks.slice().sort((a,b)=>{var os={Blocked:0,'In Progress':1,'Not Start':2,Complete:3};var op={Critical:0,High:1,Medium:2,Low:3};var sa=os[a.status]??4,sb=os[b.status]??4;return sa!==sb?sa-sb:(op[a.priority]??4)-(op[b.priority]??4);});
+  }
+  var tbody=document.getElementById('tbl-body'); tbody.innerHTML='';
+  if (!list.length) { tbody.innerHTML='<tr><td colspan="6" class="empty">'+(tableView==='urgent'?'✅ ไม่มี tasks เร่งด่วน':'ไม่พบ tasks')+'</td></tr>'; return; }
+  list.slice(0,100).forEach(t=>{
+    var tr=document.createElement('tr');
+    var due = t.endDate || '';
+    var ppl = (t.assignees||[]).join(', ') || '—';
+    var showPrio = t.priority && t.priority !== 'Low';
+    tr.innerHTML=
+      '<td><div class="t-name">'+(t.url?'<a href="'+t.url+'" target="_blank">'+t.taskName+'</a>':t.taskName)+'</div>'+(t.phase?'<div class="t-meta">'+t.phase+'</div>':'')+'</td>'
+      +'<td>'+(t.project||'—')+'</td>'
+      +'<td>'+ppl+'</td>'
+      +'<td><span class="badge '+sBadge(t.status)+'">'+(t.status||'—')+'</span></td>'
+      +'<td>'+(showPrio?'<span class="badge '+pBadge(t.priority)+'">'+t.priority+'</span>':'<span style="color:#94a3b8">'+( t.priority||'—')+'</span>')+'</td>'
+      +'<td>'+(due||'—')+'</td>';
+    tbody.appendChild(tr);
+  });
+  if(list.length>100){var tr=document.createElement('tr');tr.innerHTML='<td colspan="6" class="empty">+ '+(list.length-100)+' more — ใช้ filter เพื่อแสดงเฉพาะที่ต้องการ</td>';tbody.appendChild(tr);}
+}
+
+/* ── Main ── */
+async function main() {
+  try {
+    allTasks = await loadData();
+    filteredTasks = [...allTasks];
+    document.getElementById('loading').style.display = 'none';
+    document.getElementById('app').style.display     = 'block';
+    document.getElementById('upd-time').textContent  = 'อัปเดตล่าสุด: ' + new Date().toLocaleString('th-TH',{dateStyle:'medium',timeStyle:'short'});
+    buildFilters();
+    renderAll(filteredTasks);
+  } catch(e) {
+    document.getElementById('loading').style.display = 'none';
+    document.getElementById('app').style.display     = 'block';
+    var err = document.getElementById('error-msg');
+    err.style.display = 'block';
+    err.textContent   = '❌ โหลดข้อมูลไม่สำเร็จ: ' + e.message + '\n\nตรวจสอบ NOTION_TOKEN และลองใหม่อีกครั้ง';
+  }
+}
+</script>
+</body>
+</html>
+

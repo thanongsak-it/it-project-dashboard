@@ -71,6 +71,29 @@
     .header-row { display:flex; justify-content:space-between; align-items:flex-start; gap:16px; flex-wrap:wrap; }
     .header-badge { background:rgba(255,255,255,.15); border-radius:99px; padding:4px 14px; font-size:12px; white-space:nowrap; align-self:center; }
 
+    /* ── Project Summary ── */
+    .proj-summary { display:flex; flex-direction:column; gap:8px; }
+    .proj-row { display:flex; align-items:center; gap:10px; }
+    .proj-name { font-size:12px; font-weight:600; color:#374151; min-width:140px; max-width:140px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .proj-bar-wrap { flex:1; background:#e2e8f0; border-radius:99px; height:8px; position:relative; }
+    .proj-bar-fill { height:8px; border-radius:99px; transition:width .5s ease; }
+    .proj-stats { font-size:11px; color:#64748b; min-width:90px; text-align:right; white-space:nowrap; }
+    .proj-pct { font-size:12px; font-weight:700; min-width:36px; text-align:right; }
+
+    /* ── Phase Redesign ── */
+    .phase-group { margin-bottom:14px; }
+    .phase-group:last-child { margin-bottom:0; }
+    .phase-group-title { font-size:11px; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:.05em; margin-bottom:6px; padding-bottom:4px; border-bottom:1px solid #f1f5f9; }
+    .phase-item2 { display:flex; align-items:center; gap:8px; padding:5px 0; }
+    .phase-dot { width:8px; height:8px; border-radius:50%; flex-shrink:0; }
+    .phase-dot.done   { background:#16a34a; }
+    .phase-dot.doing  { background:#2563eb; }
+    .phase-dot.todo   { background:#94a3b8; }
+    .phase-name2 { font-size:11px; color:#374151; flex:1; }
+    .phase-bar2-wrap { width:80px; background:#e2e8f0; border-radius:99px; height:5px; }
+    .phase-bar2-fill { height:5px; border-radius:99px; }
+    .phase-num { font-size:10px; color:#64748b; min-width:50px; text-align:right; }
+
     /* ── Filter bar ── */
     .filter-bar { background:white; border-bottom:1px solid #e2e8f0; padding:14px 28px; }
     .filter-row { display:flex; gap:12px; flex-wrap:wrap; align-items:flex-end; }
@@ -249,15 +272,15 @@
     <!-- Charts -->
     <div class="charts-row">
       <div class="card"><div class="card-title">Status Overview</div><div style="position:relative;height:200px"><canvas id="c-status"></canvas></div></div>
-      <div class="card"><div class="card-title">Tasks by Project</div><div style="position:relative;height:200px"><canvas id="c-project"></canvas></div></div>
+      <div class="card"><div class="card-title">Project Completion Summary</div><div class="proj-summary" id="proj-summary"></div></div>
       <div class="card"><div class="card-title">Priority Distribution</div><div style="position:relative;height:200px"><canvas id="c-priority"></canvas></div></div>
     </div>
 
     <!-- Phase + Assignee -->
     <div class="lower-row">
       <div class="card">
-        <div class="card-title">Phase Completion</div>
-        <div class="phase-list" id="phase-list"></div>
+        <div class="card-title">Phase Status by Project</div>
+        <div style="max-height:320px;overflow-y:auto" id="phase-list"></div>
       </div>
       <div class="card">
         <div class="card-title">Active Tasks by Assignee</div>
@@ -469,9 +492,37 @@ function renderStatusChart(tasks) {
   charts.status=new Chart(document.getElementById('c-status'),{type:'doughnut',data:{labels:L,datasets:[{data:L.map(l=>c[l]),backgroundColor:L.map(sColor),borderWidth:2,borderColor:'#fff'}]},options:{responsive:true,maintainAspectRatio:false,cutout:'62%',plugins:{legend:{position:'right',labels:{font:{size:11},padding:8,boxWidth:10}}}}});
 }
 function renderProjectChart(tasks) {
-  destroyChart('project');
-  var c=countBy(tasks,t=>t.project), L=Object.keys(c).filter(l=>l!=='Unknown'); if(!L.length) return;
-  charts.project=new Chart(document.getElementById('c-project'),{type:'bar',data:{labels:L.map(l=>l.length>20?l.slice(0,20)+'...':l),datasets:[{data:L.map(l=>c[l]),backgroundColor:PP,borderRadius:4,borderSkipped:false}]},options:{responsive:true,maintainAspectRatio:false,indexAxis:'y',plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>' '+c.raw+' tasks'}}},scales:{x:{ticks:{font:{size:11}},grid:{color:'#f1f5f9'}},y:{ticks:{font:{size:11}},grid:{display:false}}}}});
+  /* Replaced by renderProjectSummary */
+}
+function renderProjectSummary(tasks) {
+  var byProj = {};
+  tasks.forEach(function(t) {
+    var p = t.project || 'Unknown'; if(p==='Unknown') return;
+    if(!byProj[p]) byProj[p] = {total:0, done:0, inprog:0, blocked:0};
+    byProj[p].total++;
+    if(t.status==='Complete') byProj[p].done++;
+    else if(t.status==='In Progress') byProj[p].inprog++;
+    else if(t.status==='Blocked') byProj[p].blocked++;
+  });
+  var projs = Object.keys(byProj).sort(function(a,b){ return byProj[b].total - byProj[a].total; });
+  var cont = document.getElementById('proj-summary'); cont.innerHTML = '';
+  var projColors = ['#3b82f6','#ef4444','#f97316','#eab308','#22c55e','#a855f7','#06b6d4'];
+  projs.forEach(function(p, i) {
+    var d = byProj[p];
+    var pct = Math.round(d.done / d.total * 100);
+    var color = projColors[i % projColors.length];
+    var label = p.length > 24 ? p.slice(0,24)+'...' : p;
+    var statusBits = [];
+    if(d.inprog)   statusBits.push('<span style="color:#2563eb">'+d.inprog+' active</span>');
+    if(d.blocked)  statusBits.push('<span style="color:#dc2626">'+d.blocked+' blocked</span>');
+    var row = document.createElement('div'); row.className = 'proj-row';
+    row.innerHTML =
+      '<span class="proj-pct" style="color:'+color+'">'+pct+'%</span>'+
+      '<span class="proj-name" title="'+p+'">'+label+'</span>'+
+      '<div class="proj-bar-wrap"><div class="proj-bar-fill" style="width:'+pct+'%;background:'+color+'"></div></div>'+
+      '<span class="proj-stats">'+d.done+'/'+d.total+(statusBits.length?' · '+statusBits.join(' · '):'')+'</span>';
+    cont.appendChild(row);
+  });
 }
 function renderPriorityChart(tasks) {
   destroyChart('priority');
@@ -479,23 +530,118 @@ function renderPriorityChart(tasks) {
   charts.priority=new Chart(document.getElementById('c-priority'),{type:'doughnut',data:{labels:L,datasets:[{data:L.map(l=>c[l]||0),backgroundColor:L.map(l=>PC[l]),borderWidth:2,borderColor:'#fff'}]},options:{responsive:true,maintainAspectRatio:false,cutout:'62%',plugins:{legend:{position:'right',labels:{font:{size:11},padding:8,boxWidth:10}}}}});
 }
 function renderPhase(tasks) {
-  var byP={};
-  tasks.forEach(t=>{var ph=t.phase;if(!ph||ph==='Unknown')return;if(!byP[ph])byP[ph]={t:0,d:0};byP[ph].t++;if(t.status==='Complete')byP[ph].d++;});
-  var cont=document.getElementById('phase-list'); cont.innerHTML='';
-  var phases=Object.keys(byP); if(!phases.length){cont.innerHTML='<div class="empty">ไม่มีข้อมูล Phase</div>';return;}
-  phases.slice(0,10).forEach((ph,i)=>{
-    var {t,d}=byP[ph], pct=Math.round(d/t*100), color=PhC[i%PhC.length], label=ph.length>35?ph.slice(0,35)+'...':ph;
-    var div=document.createElement('div'); div.className='phase-item';
-    div.innerHTML='<div class="phase-hdr"><span>'+label+'</span><span class="phase-pct" style="color:'+color+'">'+pct+'% ('+d+'/'+t+')</span></div><div class="phase-bar"><div class="phase-fill" style="width:'+pct+'%;background:'+color+'"></div></div>';
-    cont.appendChild(div);
+  /* Build project → phases map */
+  var byProjPhase = {};
+  tasks.forEach(function(t) {
+    var proj = t.project || 'Unknown'; if(proj==='Unknown') return;
+    var ph   = t.phase;  if(!ph || ph==='Unknown') return;
+    if(!byProjPhase[proj]) byProjPhase[proj] = {};
+    if(!byProjPhase[proj][ph]) byProjPhase[proj][ph] = {t:0, d:0, ip:0, bl:0};
+    byProjPhase[proj][ph].t++;
+    if(t.status==='Complete')     byProjPhase[proj][ph].d++;
+    else if(t.status==='In Progress') byProjPhase[proj][ph].ip++;
+    else if(t.status==='Blocked')     byProjPhase[proj][ph].bl++;
+  });
+  var cont = document.getElementById('phase-list'); cont.innerHTML='';
+  var projs = Object.keys(byProjPhase);
+  if(!projs.length){cont.innerHTML='<div class="empty">ไม่มีข้อมูล Phase</div>';return;}
+  var projColors = ['#3b82f6','#ef4444','#f97316','#eab308','#22c55e','#a855f7','#06b6d4'];
+  projs.forEach(function(proj, pi) {
+    var color = projColors[pi % projColors.length];
+    var phases = byProjPhase[proj];
+    /* Sort phases numerically by name */
+    var phList = Object.keys(phases).sort();
+    var totalDone  = phList.reduce(function(s,k){ return s+phases[k].d; }, 0);
+    var totalAll   = phList.reduce(function(s,k){ return s+phases[k].t; }, 0);
+    var projPct    = totalAll ? Math.round(totalDone/totalAll*100) : 0;
+    var group = document.createElement('div'); group.className = 'phase-group';
+    var shortProj = proj.length>28 ? proj.slice(0,28)+'...' : proj;
+    group.innerHTML = '<div class="phase-group-title" style="color:'+color+'">'+shortProj+' &nbsp;<span style="font-weight:400;color:#94a3b8;font-size:10px">'+projPct+'% overall · '+totalDone+'/'+totalAll+' tasks</span></div>';
+    phList.forEach(function(ph) {
+      var d = phases[ph];
+      var pct = Math.round(d.d/d.t*100);
+      /* Traffic light */
+      var dotClass = d.d===d.t ? 'done' : (d.ip>0||d.bl>0 ? 'doing' : 'todo');
+      var barColor = d.d===d.t ? '#16a34a' : (d.ip>0 ? '#2563eb' : '#94a3b8');
+      var statusTxt = d.d===d.t ? '✓ Complete' : (d.bl>0 ? '🚨 Blocked' : (d.ip>0 ? '🔄 In Progress' : '⏸ Not Started'));
+      var shortPh = ph.length>28 ? ph.slice(0,28)+'...' : ph;
+      var item = document.createElement('div'); item.className='phase-item2';
+      item.innerHTML =
+        '<div class="phase-dot '+dotClass+'"></div>'+
+        '<span class="phase-name2">'+shortPh+'</span>'+
+        '<div class="phase-bar2-wrap"><div class="phase-bar2-fill" style="width:'+pct+'%;background:'+barColor+'"></div></div>'+
+        '<span class="phase-num">'+d.d+'/'+d.t+' <span style="font-size:9px;color:#94a3b8">'+statusTxt+'</span></span>';
+      group.appendChild(item);
+    });
+    cont.appendChild(group);
   });
 }
 function renderAssigneeChart(tasks) {
   destroyChart('assignee');
-  var counts={};
-  tasks.filter(t=>t.status!=='Complete').forEach(t=>{(t.assignees||[]).forEach(n=>{counts[n]=(counts[n]||0)+1;});});
-  var L=Object.keys(counts).filter(n=>n!=='Unknown'); if(!L.length) return;
-  charts.assignee=new Chart(document.getElementById('c-assignee'),{type:'bar',data:{labels:L,datasets:[{data:L.map(l=>counts[l]),backgroundColor:PP,borderRadius:5,borderSkipped:false}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>' '+c.raw+' active tasks'}}},scales:{x:{ticks:{font:{size:13}}},y:{ticks:{font:{size:11},stepSize:1},grid:{color:'#f1f5f9'}}}}});
+  var counts={}, done={}, blocked={};
+  tasks.forEach(function(t){
+    (t.assignees||[]).forEach(function(n){
+      if(!counts[n]) { counts[n]=0; done[n]=0; blocked[n]=0; }
+      if(t.status!=='Complete') counts[n]++;
+      if(t.status==='Complete') done[n]++;
+      if(t.status==='Blocked')  blocked[n]++;
+    });
+  });
+  var L=Object.keys(counts).filter(function(n){ return n!=='Unknown'; });
+  if(!L.length) return;
+  charts.assignee=new Chart(document.getElementById('c-assignee'),{
+    type:'bar',
+    data:{
+      labels:L,
+      datasets:[{
+        label:'Active',
+        data:L.map(function(l){return counts[l];}),
+        backgroundColor:['#3b82f6','#22c55e','#f97316','#a855f7','#ef4444'],
+        borderRadius:5, borderSkipped:false
+      }]
+    },
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      plugins:{
+        legend:{display:false},
+        tooltip:{callbacks:{
+          label:function(c){
+            var n=c.label;
+            return [
+              ' Active: '+counts[n],
+              ' Complete: '+done[n],
+              ' Blocked: '+(blocked[n]||0)
+            ];
+          }
+        }}
+      },
+      scales:{
+        x:{ticks:{font:{size:13}}},
+        y:{ticks:{font:{size:11},stepSize:1},grid:{color:'#f1f5f9'},
+           suggestedMax: Math.max.apply(null,L.map(function(l){return counts[l];})) + 3}
+      }
+    },
+    plugins:[{
+      id:'datalabels',
+      afterDatasetsDraw:function(chart){
+        var ctx=chart.ctx;
+        chart.data.datasets.forEach(function(ds,di){
+          var meta=chart.getDatasetMeta(di);
+          meta.data.forEach(function(bar,i){
+            var val=ds.data[i];
+            if(!val) return;
+            ctx.save();
+            ctx.fillStyle='#1e293b';
+            ctx.font='bold 13px -apple-system,sans-serif';
+            ctx.textAlign='center';
+            ctx.textBaseline='bottom';
+            ctx.fillText(val, bar.x, bar.y-3);
+            ctx.restore();
+          });
+        });
+      }
+    }]
+  });
 }
 
 function sBadge(s){if(!s)return'bs-notstart';if(s==='Blocked')return'bs-blocked';if(s==='In Progress')return'bs-inprog';if(s==='Complete')return'bs-complete';if(s.includes('Pending'))return'bs-pending';return'bs-notstart';}

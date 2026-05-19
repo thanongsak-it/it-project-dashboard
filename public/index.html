@@ -1,0 +1,475 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>IT Project Dashboard</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.0/dist/chart.umd.js"></script>
+  <style>
+    :root {
+      --blue:   #2563eb; --green: #16a34a; --orange: #ea580c;
+      --red:    #dc2626; --purple:#7c3aed; --slate:  #64748b;
+      color-scheme: light;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans Thai', sans-serif; background: #f1f5f9; color: #1e293b; font-size: 14px; min-height: 100vh; }
+
+    /* ── Loading ── */
+    #loading { display:flex; flex-direction:column; align-items:center; justify-content:center; min-height:100vh; gap:14px; }
+    .spinner { width:40px; height:40px; border:3px solid #e2e8f0; border-top-color:#4f46e5; border-radius:50%; animation:spin .8s linear infinite; }
+    @keyframes spin { to { transform:rotate(360deg); } }
+    #loading p     { color:#475569; font-size:14px; }
+    #loading small { color:#94a3b8; font-size:12px; }
+    .load-bar-wrap { width:240px; background:#e2e8f0; border-radius:99px; height:4px; }
+    .load-bar      { height:4px; border-radius:99px; background:#4f46e5; transition:width .4s ease; }
+
+    /* ── Layout ── */
+    #app { display:none; max-width:1400px; margin:0 auto; }
+
+    /* ── Header ── */
+    .page-header {
+      background:linear-gradient(135deg,#1e3a8a,#2563eb);
+      color:white; padding:24px 28px 20px;
+    }
+    .page-header h1 { font-size:22px; font-weight:700; margin-bottom:4px; }
+    .page-header .sub { font-size:13px; opacity:.75; }
+    .page-header .upd { font-size:11px; opacity:.5; margin-top:6px; }
+    .header-row { display:flex; justify-content:space-between; align-items:flex-start; gap:16px; flex-wrap:wrap; }
+    .header-badge { background:rgba(255,255,255,.15); border-radius:99px; padding:4px 14px; font-size:12px; white-space:nowrap; align-self:center; }
+
+    /* ── Filter bar ── */
+    .filter-bar { background:white; border-bottom:1px solid #e2e8f0; padding:14px 28px; }
+    .filter-row { display:flex; gap:12px; flex-wrap:wrap; align-items:flex-end; }
+    .filter-group { display:flex; flex-direction:column; gap:4px; min-width:160px; }
+    .filter-group label { font-size:11px; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:.05em; }
+    .filter-group select { border:1px solid #e2e8f0; border-radius:7px; padding:7px 10px; font-size:12px; color:#1e293b; background:#f8fafc; font-family:inherit; outline:none; cursor:pointer; }
+    .filter-group select:focus { border-color:#4f46e5; background:white; }
+    .filter-actions { display:flex; gap:8px; align-items:flex-end; }
+    .btn { border:none; border-radius:7px; padding:8px 18px; font-size:12px; font-weight:700; cursor:pointer; font-family:inherit; transition:opacity .15s; }
+    .btn-apply { background:#4f46e5; color:white; }
+    .btn-clear  { background:#f1f5f9; color:#475569; border:1px solid #e2e8f0; }
+    .btn:hover  { opacity:.82; }
+    .filter-active { margin-top:8px; font-size:11px; color:#4f46e5; font-weight:600; padding:4px 10px; background:#eef2ff; border-radius:5px; display:inline-block; }
+
+    /* ── Main grid ── */
+    .main { padding:20px 28px; display:grid; gap:20px; }
+
+    /* ── KPI strip ── */
+    .kpi-strip { display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:12px; }
+    .kpi-card { background:white; border-radius:10px; padding:14px 16px 12px; box-shadow:0 1px 3px rgba(0,0,0,.07); border-top:3px solid #e2e8f0; }
+    .kpi-card.blue   { border-color:#3b82f6; } .kpi-card.blue   .kv { color:#2563eb; }
+    .kpi-card.green  { border-color:#16a34a; } .kpi-card.green  .kv { color:#16a34a; }
+    .kpi-card.orange { border-color:#ea580c; } .kpi-card.orange .kv { color:#ea580c; }
+    .kpi-card.red    { border-color:#dc2626; } .kpi-card.red    .kv { color:#dc2626; }
+    .kpi-card.purple { border-color:#7c3aed; } .kpi-card.purple .kv { color:#7c3aed; }
+    .kpi-card.gray   { border-color:#94a3b8; } .kpi-card.gray   .kv { color:#64748b; }
+    .kl { font-size:11px; color:#64748b; font-weight:600; margin-bottom:4px; }
+    .kv { font-size:30px; font-weight:700; line-height:1; }
+    .ks { font-size:11px; color:#94a3b8; margin-top:3px; }
+    .kpi-bar { background:#e2e8f0; border-radius:99px; height:4px; margin-top:6px; }
+    .kpi-bar-fill { height:4px; border-radius:99px; background:linear-gradient(90deg,#22c55e,#86efac); transition:width .6s ease; }
+
+    /* ── Charts row ── */
+    .charts-row { display:grid; grid-template-columns:1fr 1fr 1fr; gap:16px; }
+    @media (max-width:900px) { .charts-row { grid-template-columns:1fr 1fr; } }
+    @media (max-width:600px) { .charts-row { grid-template-columns:1fr; } }
+
+    /* ── Phase & Assignee row ── */
+    .lower-row { display:grid; grid-template-columns:1.4fr 1fr; gap:16px; }
+    @media (max-width:800px) { .lower-row { grid-template-columns:1fr; } }
+
+    /* ── Cards ── */
+    .card { background:white; border-radius:10px; padding:16px; box-shadow:0 1px 3px rgba(0,0,0,.07); }
+    .card-title { font-size:13px; font-weight:700; color:#374151; margin-bottom:12px; }
+
+    /* ── Phase progress ── */
+    .phase-list { display:flex; flex-direction:column; gap:9px; }
+    .phase-item {}
+    .phase-hdr { display:flex; justify-content:space-between; font-size:12px; color:#475569; margin-bottom:3px; }
+    .phase-pct { font-weight:700; }
+    .phase-bar { background:#e2e8f0; border-radius:99px; height:6px; }
+    .phase-fill { height:6px; border-radius:99px; transition:width .6s ease; }
+
+    /* ── Task table ── */
+    .table-wrap { overflow-x:auto; }
+    table { width:100%; border-collapse:collapse; font-size:12px; }
+    th { text-align:left; padding:9px 12px; font-size:11px; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:.04em; border-bottom:2px solid #f1f5f9; white-space:nowrap; }
+    td { padding:9px 12px; border-bottom:1px solid #f8fafc; vertical-align:middle; }
+    tr:last-child td { border-bottom:none; }
+    tr:hover td { background:#fafafa; }
+    .t-name { font-weight:500; color:#1e293b; max-width:260px; }
+    .t-name a { color:inherit; text-decoration:none; }
+    .t-name a:hover { color:#2563eb; }
+    .t-meta { font-size:11px; color:#94a3b8; margin-top:1px; }
+    .badge { display:inline-block; font-size:10px; font-weight:700; padding:2px 8px; border-radius:99px; white-space:nowrap; }
+    .bs-blocked  { background:#fee2e2; color:#dc2626; }
+    .bs-inprog   { background:#dbeafe; color:#2563eb; }
+    .bs-pending  { background:#ede9fe; color:#7c3aed; }
+    .bs-notstart { background:#f1f5f9; color:#64748b; }
+    .bs-complete { background:#dcfce7; color:#16a34a; }
+    .bp-critical { background:#fef2f2; color:#dc2626; }
+    .bp-high     { background:#fff7ed; color:#ea580c; }
+    .bp-medium   { background:#fefce8; color:#a16207; }
+    .bp-low      { background:#f0fdf4; color:#15803d; }
+    .table-hdr { display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; flex-wrap:wrap; gap:8px; }
+    .table-hdr-title { font-size:13px; font-weight:700; color:#374151; }
+    .view-toggle { background:#f1f5f9; border:1px solid #e2e8f0; border-radius:99px; display:flex; overflow:hidden; }
+    .view-toggle button { border:none; background:none; padding:5px 14px; font-size:11px; font-weight:600; cursor:pointer; color:#64748b; font-family:inherit; }
+    .view-toggle button.active { background:#4f46e5; color:white; }
+
+    .empty { padding:24px; text-align:center; color:#94a3b8; font-size:13px; }
+    #error-msg { display:none; padding:20px; background:#fef2f2; color:#dc2626; border-radius:8px; font-size:13px; }
+  </style>
+</head>
+<body>
+
+<div id="loading">
+  <div class="spinner"></div>
+  <p id="load-msg">กำลังโหลดข้อมูลจาก Notion...</p>
+  <div class="load-bar-wrap"><div class="load-bar" id="load-bar" style="width:10%"></div></div>
+  <small id="load-sub">กรุณารอสักครู่</small>
+</div>
+
+<div id="app">
+
+  <!-- Header -->
+  <div class="page-header">
+    <div class="header-row">
+      <div>
+        <h1>🖥️ IT Project Dashboard</h1>
+        <div class="sub">IT Project Management &middot; All Projects</div>
+        <div class="upd" id="upd-time"></div>
+      </div>
+      <div class="header-badge" id="count-badge">— tasks</div>
+    </div>
+  </div>
+
+  <!-- Filters -->
+  <div class="filter-bar">
+    <div class="filter-row">
+      <div class="filter-group">
+        <label>📅 Date Range</label>
+        <select id="f-date">
+          <option value="">All Time</option>
+          <option value="this_week">This Week (Mon – Today)</option>
+          <option value="last_7">Last 7 Days</option>
+          <option value="last_30">Last 30 Days</option>
+          <option value="this_month">This Month</option>
+          <option value="last_month">Last Month</option>
+          <option value="last_90">Last 90 Days</option>
+        </select>
+      </div>
+      <div class="filter-group">
+        <label>📁 Project</label>
+        <select id="f-project"><option value="">All Projects</option></select>
+      </div>
+      <div class="filter-group">
+        <label>👤 Assignee</label>
+        <select id="f-assignee"><option value="">All Assignees</option></select>
+      </div>
+      <div class="filter-group">
+        <label>⚙ Status</label>
+        <select id="f-status">
+          <option value="">All Statuses</option>
+          <option value="In Progress">In Progress</option>
+          <option value="Blocked">Blocked</option>
+          <option value="Not Start">Not Start</option>
+          <option value="Complete">Complete</option>
+          <option value="Pending">Pending Review</option>
+        </select>
+      </div>
+      <div class="filter-actions">
+        <button class="btn btn-apply" onclick="applyFilters()">🔍 Apply</button>
+        <button class="btn btn-clear"  onclick="clearFilters()">✖ Clear</button>
+      </div>
+    </div>
+    <div id="filter-active"></div>
+  </div>
+
+  <div class="main">
+    <div id="error-msg"></div>
+
+    <!-- KPIs -->
+    <div class="kpi-strip">
+      <div class="kpi-card blue">  <div class="kl">📋 Total Tasks</div><div class="kv" id="k-total">—</div><div class="ks" id="k-of">—</div></div>
+      <div class="kpi-card green"> <div class="kl">✅ Complete</div>    <div class="kv" id="k-done">—</div>   <div class="ks" id="k-pct">—</div><div class="kpi-bar"><div class="kpi-bar-fill" id="k-bar" style="width:0%"></div></div></div>
+      <div class="kpi-card orange"><div class="kl">🔄 In Progress</div> <div class="kv" id="k-inprog">—</div><div class="ks">กำลังดำเนินการ</div></div>
+      <div class="kpi-card red">   <div class="kl">🚨 Blocked</div>     <div class="kv" id="k-blocked">—</div><div class="ks">ต้องแก้ไขด่วน</div></div>
+      <div class="kpi-card purple"><div class="kl">⚡ Critical</div>    <div class="kv" id="k-crit">—</div>  <div class="ks">ความสำคัญสูงสุด</div></div>
+      <div class="kpi-card gray">  <div class="kl">☐ Not Started</div> <div class="kv" id="k-notstart">—</div><div class="ks">ยังไม่เริ่ม</div></div>
+    </div>
+
+    <!-- Charts -->
+    <div class="charts-row">
+      <div class="card"><div class="card-title">Status Overview</div><div style="position:relative;height:200px"><canvas id="c-status"></canvas></div></div>
+      <div class="card"><div class="card-title">Tasks by Project</div><div style="position:relative;height:200px"><canvas id="c-project"></canvas></div></div>
+      <div class="card"><div class="card-title">Priority Distribution</div><div style="position:relative;height:200px"><canvas id="c-priority"></canvas></div></div>
+    </div>
+
+    <!-- Phase + Assignee -->
+    <div class="lower-row">
+      <div class="card">
+        <div class="card-title">Phase Completion</div>
+        <div class="phase-list" id="phase-list"></div>
+      </div>
+      <div class="card">
+        <div class="card-title">Active Tasks by Assignee</div>
+        <div style="position:relative;height:220px"><canvas id="c-assignee"></canvas></div>
+      </div>
+    </div>
+
+    <!-- Task table -->
+    <div class="card">
+      <div class="table-hdr">
+        <div class="table-hdr-title" id="tbl-title">📋 All Tasks</div>
+        <div class="view-toggle">
+          <button id="btn-all"    class="active" onclick="setView('all')">All</button>
+          <button id="btn-urgent" onclick="setView('urgent')">Urgent</button>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Task</th>
+              <th>Project</th>
+              <th>Assignee</th>
+              <th>Status</th>
+              <th>Priority</th>
+              <th>Due Date</th>
+            </tr>
+          </thead>
+          <tbody id="tbl-body"></tbody>
+        </table>
+      </div>
+    </div>
+
+  </div><!-- /main -->
+</div><!-- /app -->
+
+<script>
+/* ── State ── */
+var allTasks = [], filteredTasks = [], charts = {}, tableView = 'all';
+
+/* ── Load data from /api/notion ── */
+async function loadData() {
+  try {
+    document.getElementById('load-bar').style.width = '30%';
+    document.getElementById('load-sub').textContent = 'กำลังเรียกข้อมูลจาก Notion API...';
+    const res  = await fetch('/api/notion');
+    document.getElementById('load-bar').style.width = '80%';
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ error: res.statusText }));
+      throw new Error(err.error || res.statusText);
+    }
+    const data = await res.json();
+    document.getElementById('load-bar').style.width = '100%';
+    return data.tasks || [];
+  } catch (e) {
+    throw e;
+  }
+}
+
+/* ── Date presets ── */
+function isoDate(d) {
+  return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+}
+function getDateRange(p) {
+  if (!p) return null;
+  var t = new Date(); t.setHours(0,0,0,0);
+  var from, to = isoDate(t);
+  if      (p==='this_week')  { var d=t.getDay()||7; var m=new Date(t); m.setDate(t.getDate()-(d-1)); from=isoDate(m); }
+  else if (p==='last_7')     { var m=new Date(t); m.setDate(t.getDate()-7); from=isoDate(m); }
+  else if (p==='last_30')    { var m=new Date(t); m.setDate(t.getDate()-30); from=isoDate(m); }
+  else if (p==='this_month') { from=t.getFullYear()+'-'+String(t.getMonth()+1).padStart(2,'0')+'-01'; }
+  else if (p==='last_month') { var fl=new Date(t.getFullYear(),t.getMonth(),1); var pl=new Date(fl-1); from=isoDate(new Date(pl.getFullYear(),pl.getMonth(),1)); to=isoDate(pl); }
+  else if (p==='last_90')    { var m=new Date(t); m.setDate(t.getDate()-90); from=isoDate(m); }
+  return from ? {from,to} : null;
+}
+
+/* ── Build filter dropdowns ── */
+function buildFilters() {
+  var projects = [], assignees = new Set();
+  allTasks.forEach(t => {
+    if (t.project && !projects.includes(t.project)) projects.push(t.project);
+    (t.assignees||[]).forEach(a => assignees.add(a));
+  });
+  projects.sort();
+  var ps = document.getElementById('f-project');
+  ps.innerHTML = '<option value="">All Projects</option>';
+  projects.forEach(p => { var o=document.createElement('option'); o.value=p; o.textContent=p; ps.appendChild(o); });
+  var as = document.getElementById('f-assignee');
+  as.innerHTML = '<option value="">All Assignees</option>';
+  [...assignees].sort().forEach(n => { var o=document.createElement('option'); o.value=n; o.textContent=n; as.appendChild(o); });
+}
+
+function applyFilters() {
+  var dp   = document.getElementById('f-date').value;
+  var proj = document.getElementById('f-project').value;
+  var asgn = document.getElementById('f-assignee').value;
+  var stat = document.getElementById('f-status').value;
+  var range = getDateRange(dp);
+  var labels = [];
+  if (dp)   labels.push(document.getElementById('f-date').options[document.getElementById('f-date').selectedIndex].text);
+  if (proj) labels.push(proj.length>25?proj.slice(0,25)+'...':proj);
+  if (asgn) labels.push(asgn);
+  if (stat) labels.push(stat);
+  var fa = document.getElementById('filter-active');
+  fa.innerHTML = labels.length ? '<div class="filter-active">🔍 '+labels.join(' · ')+'</div>' : '';
+  filteredTasks = allTasks.filter(t => {
+    if (range) {
+      var td = t.endDate || t.startDate;
+      if (td && (td < range.from || td > range.to)) return false;
+    }
+    if (proj && t.project !== proj) return false;
+    if (asgn && !(t.assignees||[]).includes(asgn)) return false;
+    if (stat) {
+      if (stat === 'Pending') { if (!t.status||!t.status.includes('Pending')) return false; }
+      else if (t.status !== stat) return false;
+    }
+    return true;
+  });
+  renderAll(filteredTasks);
+}
+
+function clearFilters() {
+  ['f-date','f-project','f-assignee','f-status'].forEach(id => document.getElementById(id).value='');
+  document.getElementById('filter-active').innerHTML = '';
+  filteredTasks = [...allTasks];
+  renderAll(filteredTasks);
+}
+
+/* ── Render ── */
+function countBy(arr, fn) {
+  return arr.reduce((a,t)=>{var v=fn(t)||'Unknown';a[v]=(a[v]||0)+1;return a;},{});
+}
+function destroyChart(k) { if(charts[k]){try{charts[k].destroy();}catch(e){} charts[k]=null;} }
+
+function renderAll(tasks) {
+  renderKPI(tasks);
+  renderStatusChart(tasks);
+  renderProjectChart(tasks);
+  renderPriorityChart(tasks);
+  renderPhase(tasks);
+  renderAssigneeChart(tasks);
+  renderTable(tasks);
+  var b = document.getElementById('count-badge');
+  b.textContent = (tasks.length!==allTasks.length?tasks.length+'/'+allTasks.length:tasks.length) + ' tasks';
+}
+
+function renderKPI(tasks) {
+  var n    = tasks.length;
+  var done = tasks.filter(t=>t.status==='Complete').length;
+  var pct  = n ? Math.round(done/n*100) : 0;
+  document.getElementById('k-total').textContent   = n;
+  document.getElementById('k-of').textContent      = tasks.length!==allTasks.length?'of '+allTasks.length+' total':'ทั้งหมด';
+  document.getElementById('k-done').textContent    = done;
+  document.getElementById('k-pct').textContent     = pct+'% สำเร็จ';
+  document.getElementById('k-bar').style.width     = pct+'%';
+  document.getElementById('k-inprog').textContent  = tasks.filter(t=>t.status==='In Progress').length;
+  document.getElementById('k-blocked').textContent = tasks.filter(t=>t.status==='Blocked').length;
+  document.getElementById('k-crit').textContent    = tasks.filter(t=>t.priority==='Critical').length;
+  document.getElementById('k-notstart').textContent= tasks.filter(t=>t.status==='Not Start').length;
+}
+
+var SC = {Complete:'#16a34a','In Progress':'#2563eb',Blocked:'#dc2626','Not Start':'#94a3b8'};
+var PP = ['#3b82f6','#ef4444','#f97316','#eab308','#22c55e','#a855f7','#06b6d4','#ec4899'];
+var PC = {Critical:'#dc2626',High:'#f97316',Medium:'#eab308',Low:'#22c55e'};
+var PhC= ['#3b82f6','#a855f7','#f97316','#eab308','#22c55e','#94a3b8','#ef4444','#06b6d4'];
+
+function sColor(s){ if(s&&s.includes('Pending')) return '#7c3aed'; return SC[s]||'#cbd5e1'; }
+
+function renderStatusChart(tasks) {
+  destroyChart('status');
+  var c=countBy(tasks,t=>t.status), L=Object.keys(c); if(!L.length) return;
+  charts.status=new Chart(document.getElementById('c-status'),{type:'doughnut',data:{labels:L,datasets:[{data:L.map(l=>c[l]),backgroundColor:L.map(sColor),borderWidth:2,borderColor:'#fff'}]},options:{responsive:true,maintainAspectRatio:false,cutout:'62%',plugins:{legend:{position:'right',labels:{font:{size:11},padding:8,boxWidth:10}}}}});
+}
+function renderProjectChart(tasks) {
+  destroyChart('project');
+  var c=countBy(tasks,t=>t.project), L=Object.keys(c).filter(l=>l!=='Unknown'); if(!L.length) return;
+  charts.project=new Chart(document.getElementById('c-project'),{type:'bar',data:{labels:L.map(l=>l.length>20?l.slice(0,20)+'...':l),datasets:[{data:L.map(l=>c[l]),backgroundColor:PP,borderRadius:4,borderSkipped:false}]},options:{responsive:true,maintainAspectRatio:false,indexAxis:'y',plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>' '+c.raw+' tasks'}}},scales:{x:{ticks:{font:{size:11}},grid:{color:'#f1f5f9'}},y:{ticks:{font:{size:11}},grid:{display:false}}}}});
+}
+function renderPriorityChart(tasks) {
+  destroyChart('priority');
+  var c=countBy(tasks,t=>t.priority), L=['Critical','High','Medium','Low'].filter(l=>c[l]); if(!L.length) return;
+  charts.priority=new Chart(document.getElementById('c-priority'),{type:'doughnut',data:{labels:L,datasets:[{data:L.map(l=>c[l]||0),backgroundColor:L.map(l=>PC[l]),borderWidth:2,borderColor:'#fff'}]},options:{responsive:true,maintainAspectRatio:false,cutout:'62%',plugins:{legend:{position:'right',labels:{font:{size:11},padding:8,boxWidth:10}}}}});
+}
+function renderPhase(tasks) {
+  var byP={};
+  tasks.forEach(t=>{var ph=t.phase;if(!ph||ph==='Unknown')return;if(!byP[ph])byP[ph]={t:0,d:0};byP[ph].t++;if(t.status==='Complete')byP[ph].d++;});
+  var cont=document.getElementById('phase-list'); cont.innerHTML='';
+  var phases=Object.keys(byP); if(!phases.length){cont.innerHTML='<div class="empty">ไม่มีข้อมูล Phase</div>';return;}
+  phases.slice(0,10).forEach((ph,i)=>{
+    var {t,d}=byP[ph], pct=Math.round(d/t*100), color=PhC[i%PhC.length], label=ph.length>35?ph.slice(0,35)+'...':ph;
+    var div=document.createElement('div'); div.className='phase-item';
+    div.innerHTML='<div class="phase-hdr"><span>'+label+'</span><span class="phase-pct" style="color:'+color+'">'+pct+'% ('+d+'/'+t+')</span></div><div class="phase-bar"><div class="phase-fill" style="width:'+pct+'%;background:'+color+'"></div></div>';
+    cont.appendChild(div);
+  });
+}
+function renderAssigneeChart(tasks) {
+  destroyChart('assignee');
+  var counts={};
+  tasks.filter(t=>t.status!=='Complete').forEach(t=>{(t.assignees||[]).forEach(n=>{counts[n]=(counts[n]||0)+1;});});
+  var L=Object.keys(counts).filter(n=>n!=='Unknown'); if(!L.length) return;
+  charts.assignee=new Chart(document.getElementById('c-assignee'),{type:'bar',data:{labels:L,datasets:[{data:L.map(l=>counts[l]),backgroundColor:PP,borderRadius:5,borderSkipped:false}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>' '+c.raw+' active tasks'}}},scales:{x:{ticks:{font:{size:13}}},y:{ticks:{font:{size:11},stepSize:1},grid:{color:'#f1f5f9'}}}}});
+}
+
+function sBadge(s){if(!s)return'bs-notstart';if(s==='Blocked')return'bs-blocked';if(s==='In Progress')return'bs-inprog';if(s==='Complete')return'bs-complete';if(s.includes('Pending'))return'bs-pending';return'bs-notstart';}
+function pBadge(p){if(!p)return'';return 'bp-'+p.toLowerCase();}
+
+function setView(v) {
+  tableView=v;
+  document.getElementById('btn-all').className   = v==='all'    ? 'active' : '';
+  document.getElementById('btn-urgent').className= v==='urgent' ? 'active' : '';
+  document.getElementById('tbl-title').textContent= v==='urgent' ? '🔥 Urgent & Blocked' : '📋 All Tasks';
+  renderTable(filteredTasks);
+}
+
+function renderTable(tasks) {
+  var list;
+  if (tableView==='urgent') {
+    list=tasks.filter(t=>t.status==='Blocked'||(t.status==='In Progress'&&(t.priority==='Critical'||t.priority==='High'))||(t.status&&t.status.includes('Pending')));
+    list.sort((a,b)=>{var os={Blocked:0,'In Progress':1};var op={Critical:0,High:1,Medium:2,Low:3};return((os[a.status]||2)*10+(op[a.priority]||4))-((os[b.status]||2)*10+(op[b.priority]||4));});
+  } else {
+    list=tasks.slice().sort((a,b)=>{var os={Blocked:0,'In Progress':1,'Not Start':2,Complete:3};var op={Critical:0,High:1,Medium:2,Low:3};var sa=os[a.status]??4,sb=os[b.status]??4;return sa!==sb?sa-sb:(op[a.priority]??4)-(op[b.priority]??4);});
+  }
+  var tbody=document.getElementById('tbl-body'); tbody.innerHTML='';
+  if (!list.length) { tbody.innerHTML='<tr><td colspan="6" class="empty">'+(tableView==='urgent'?'✅ ไม่มี tasks เร่งด่วน':'ไม่พบ tasks')+'</td></tr>'; return; }
+  list.slice(0,100).forEach(t=>{
+    var tr=document.createElement('tr');
+    var due = t.endDate || '';
+    var ppl = (t.assignees||[]).join(', ') || '—';
+    var showPrio = t.priority && t.priority !== 'Low';
+    tr.innerHTML=
+      '<td><div class="t-name">'+(t.url?'<a href="'+t.url+'" target="_blank">'+t.taskName+'</a>':t.taskName)+'</div>'+(t.phase?'<div class="t-meta">'+t.phase+'</div>':'')+'</td>'
+      +'<td>'+(t.project||'—')+'</td>'
+      +'<td>'+ppl+'</td>'
+      +'<td><span class="badge '+sBadge(t.status)+'">'+(t.status||'—')+'</span></td>'
+      +'<td>'+(showPrio?'<span class="badge '+pBadge(t.priority)+'">'+t.priority+'</span>':'<span style="color:#94a3b8">'+( t.priority||'—')+'</span>')+'</td>'
+      +'<td>'+(due||'—')+'</td>';
+    tbody.appendChild(tr);
+  });
+  if(list.length>100){var tr=document.createElement('tr');tr.innerHTML='<td colspan="6" class="empty">+ '+(list.length-100)+' more — ใช้ filter เพื่อแสดงเฉพาะที่ต้องการ</td>';tbody.appendChild(tr);}
+}
+
+/* ── Main ── */
+(async function main() {
+  try {
+    allTasks = await loadData();
+    filteredTasks = [...allTasks];
+    document.getElementById('loading').style.display = 'none';
+    document.getElementById('app').style.display     = 'block';
+    document.getElementById('upd-time').textContent  = 'อัปเดตล่าสุด: ' + new Date().toLocaleString('th-TH',{dateStyle:'medium',timeStyle:'short'});
+    buildFilters();
+    renderAll(filteredTasks);
+  } catch(e) {
+    document.getElementById('loading').style.display = 'none';
+    document.getElementById('app').style.display     = 'block';
+    var err = document.getElementById('error-msg');
+    err.style.display = 'block';
+    err.textContent   = '❌ โหลดข้อมูลไม่สำเร็จ: ' + e.message + '\n\nตรวจสอบ NOTION_TOKEN และลองใหม่อีกครั้ง';
+  }
+})();
+</script>
+</body>
+</html>

@@ -47,6 +47,48 @@
       cursor:pointer; font-family:inherit; font-weight:600; transition:background .2s;
     }
     .logout-btn:hover { background:rgba(255,255,255,.25); }
+    .refresh-btn {
+      background:rgba(255,255,255,.15); border:1px solid rgba(255,255,255,.3);
+      color:white; border-radius:99px; padding:5px 14px; font-size:12px;
+      cursor:pointer; font-family:inherit; font-weight:600; transition:background .2s;
+      display:flex; align-items:center; gap:6px;
+    }
+    .refresh-btn:hover { background:rgba(255,255,255,.25); }
+    .refresh-btn:disabled { opacity:.5; cursor:not-allowed; }
+    .refresh-btn .spin-icon { display:none; animation:spin .6s linear infinite; }
+    .refresh-btn.spinning .spin-icon { display:inline; }
+    .refresh-btn.spinning .idle-icon { display:none; }
+
+    /* ── Nav tabs ── */
+    .nav-tabs { display:flex; gap:0; background:rgba(0,0,0,.15); border-radius:8px; overflow:hidden; margin-top:14px; width:fit-content; }
+    .nav-tab { border:none; background:none; color:rgba(255,255,255,.7); padding:7px 18px; font-size:12px; font-weight:700; cursor:pointer; font-family:inherit; transition:all .2s; }
+    .nav-tab.active { background:white; color:#1e3a8a; }
+    .nav-tab:hover:not(.active) { background:rgba(255,255,255,.15); color:white; }
+
+    /* ── Standup view ── */
+    #standup-view { display:none; padding:20px 28px; }
+    .standup-date { font-size:15px; font-weight:700; color:#1e293b; margin-bottom:16px; }
+    .standup-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(320px,1fr)); gap:16px; }
+    .standup-card { background:white; border-radius:10px; padding:16px; box-shadow:0 1px 3px rgba(0,0,0,.07); }
+    .standup-name { font-size:15px; font-weight:700; color:#1e293b; margin-bottom:12px; display:flex; align-items:center; gap:8px; }
+    .standup-avatar { width:30px; height:30px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:14px; font-weight:700; color:white; flex-shrink:0; }
+    .standup-section { margin-bottom:12px; }
+    .standup-section:last-child { margin-bottom:0; }
+    .standup-section-title { font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.08em; color:#94a3b8; margin-bottom:6px; }
+    .standup-task { font-size:12px; color:#374151; padding:5px 8px; background:#f8fafc; border-radius:5px; margin-bottom:4px; border-left:3px solid #e2e8f0; display:flex; justify-content:space-between; align-items:flex-start; gap:6px; }
+    .standup-task.inprog  { border-left-color:#2563eb; background:#eff6ff; }
+    .standup-task.blocked { border-left-color:#dc2626; background:#fef2f2; }
+    .standup-task.done    { border-left-color:#16a34a; background:#f0fdf4; }
+    .standup-task.pending { border-left-color:#7c3aed; background:#f5f3ff; }
+    .standup-task-name { flex:1; line-height:1.35; }
+    .standup-task-proj { font-size:10px; color:#94a3b8; margin-top:2px; }
+    .standup-empty { font-size:12px; color:#94a3b8; padding:4px 0; font-style:italic; }
+    .standup-counts { display:flex; gap:8px; margin-bottom:14px; flex-wrap:wrap; }
+    .standup-stat { background:#f1f5f9; border-radius:6px; padding:4px 10px; font-size:11px; font-weight:700; }
+    .standup-stat.blue   { background:#dbeafe; color:#2563eb; }
+    .standup-stat.red    { background:#fee2e2; color:#dc2626; }
+    .standup-stat.green  { background:#dcfce7; color:#16a34a; }
+    .standup-stat.purple { background:#ede9fe; color:#7c3aed; }
 
     /* ── Loading ── */
     #loading { display:flex; flex-direction:column; align-items:center; justify-content:center; min-height:100vh; gap:14px; }
@@ -209,8 +251,19 @@
         <div class="sub">IT Project Management &middot; All Projects</div>
         <div class="upd" id="upd-time"></div>
       </div>
-      <div class="header-badge" id="count-badge">— tasks</div>
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+        <div class="header-badge" id="count-badge">— tasks</div>
+        <button class="refresh-btn" id="refresh-btn" onclick="refreshData()">
+          <span class="idle-icon">🔄</span>
+          <span class="spin-icon">⟳</span>
+          Refresh
+        </button>
         <button class="logout-btn" onclick="doLogout()">🚪 Logout</button>
+      </div>
+    </div>
+    <div class="nav-tabs">
+      <button class="nav-tab active" id="tab-dashboard" onclick="switchTab('dashboard')">📊 Dashboard</button>
+      <button class="nav-tab" id="tab-standup" onclick="switchTab('standup')">☀️ Daily Standup</button>
     </div>
   </div>
 
@@ -315,6 +368,13 @@
     </div>
 
   </div><!-- /main -->
+
+  <!-- Daily Standup View -->
+  <div id="standup-view">
+    <div class="standup-date" id="standup-date"></div>
+    <div class="standup-grid" id="standup-grid"></div>
+  </div>
+
 </div><!-- /app -->
 
 <script>
@@ -463,6 +523,7 @@ function renderAll(tasks) {
   renderTable(tasks);
   var b = document.getElementById('count-badge');
   b.textContent = (tasks.length!==allTasks.length?tasks.length+'/'+allTasks.length:tasks.length) + ' tasks';
+  if (currentTab === 'standup') renderStandup(tasks);
 }
 
 function renderKPI(tasks) {
@@ -682,6 +743,81 @@ function renderTable(tasks) {
   });
   if(list.length>100){var tr=document.createElement('tr');tr.innerHTML='<td colspan="6" class="empty">+ '+(list.length-100)+' more — ใช้ filter เพื่อแสดงเฉพาะที่ต้องการ</td>';tbody.appendChild(tr);}
 }
+
+/* ── Refresh ── */
+async function refreshData() {
+  var btn = document.getElementById('refresh-btn');
+  if (!btn || btn.disabled) return;
+  btn.disabled = true; btn.classList.add('spinning');
+  try {
+    var tasks = await loadData();
+    allTasks = tasks;
+    filteredTasks = [...allTasks];
+    document.getElementById('upd-time').textContent = 'อัปเดตล่าสุด: ' + new Date().toLocaleString('th-TH',{dateStyle:'medium',timeStyle:'short'});
+    buildFilters();
+    var dp=document.getElementById('f-date').value, proj=document.getElementById('f-project').value,
+        asgn=document.getElementById('f-assignee').value, stat=document.getElementById('f-status').value;
+    if (dp||proj||asgn||stat) { applyFilters(); } else { renderAll(filteredTasks); }
+  } catch(e) { alert('❌ Refresh ไม่สำเร็จ: ' + e.message); }
+  btn.disabled = false; btn.classList.remove('spinning');
+}
+
+/* ── Tab switching ── */
+var currentTab = 'dashboard';
+function switchTab(tab) {
+  currentTab = tab;
+  document.getElementById('tab-dashboard').classList.toggle('active', tab==='dashboard');
+  document.getElementById('tab-standup').classList.toggle('active', tab==='standup');
+  document.querySelector('.main').style.display = tab==='dashboard' ? 'grid' : 'none';
+  document.getElementById('standup-view').style.display = tab==='standup' ? 'block' : 'none';
+  if (tab==='standup') renderStandup(filteredTasks);
+}
+
+/* ── Daily Standup ── */
+var AVATAR_COLORS = ['#3b82f6','#ef4444','#f97316','#a855f7','#22c55e','#06b6d4','#ec4899','#6366f1'];
+function renderStandup(tasks) {
+  var now = new Date();
+  var dayNames = ['อาทิตย์','จันทร์','อังคาร','พุธ','พฤหัสบดี','ศุกร์','เสาร์'];
+  document.getElementById('standup-date').textContent =
+    '☀️ Daily Standup — วัน' + dayNames[now.getDay()] + ' ' +
+    now.toLocaleDateString('th-TH',{day:'numeric',month:'long',year:'numeric'});
+  var assignees = [];
+  tasks.forEach(function(t){ (t.assignees||[]).forEach(function(a){ if(a&&a!=='Unknown'&&!assignees.includes(a))assignees.push(a); }); });
+  assignees.sort();
+  var todayStr = isoDate(now);
+  var grid = document.getElementById('standup-grid');
+  grid.innerHTML = '';
+  if (!assignees.length) { grid.innerHTML = '<div class="empty">ไม่พบ assignee</div>'; return; }
+  assignees.forEach(function(name, idx) {
+    var myT = tasks.filter(function(t){ return (t.assignees||[]).includes(name); });
+    var inProg  = myT.filter(function(t){ return t.status==='In Progress'; });
+    var blocked = myT.filter(function(t){ return t.status==='Blocked'; });
+    var pending = myT.filter(function(t){ return t.status&&t.status.includes('Pending'); });
+    var done    = myT.filter(function(t){ return t.status==='Complete'; });
+    var dueToday= myT.filter(function(t){ return t.endDate===todayStr&&t.status!=='Complete'; });
+    var color = AVATAR_COLORS[idx%AVATAR_COLORS.length];
+    var initials = name.split(' ').map(function(w){return w[0]||'';}).join('').slice(0,2).toUpperCase()||name.slice(0,2).toUpperCase();
+    function row(t,cls){ return '<div class="standup-task '+cls+'"><div><div class="standup-task-name">'+escHtml(t.taskName||'—')+'</div>'+(t.project?'<div class="standup-task-proj">'+escHtml(t.project)+'</div>':'')+'</div>'+(t.endDate?'<div style="font-size:10px;color:#94a3b8;white-space:nowrap">'+t.endDate+'</div>':'')+'</div>'; }
+    function sec(title,arr,cls,max){ if(!arr.length)return ''; var h='<div class="standup-section"><div class="standup-section-title">'+title+'</div>'; arr.slice(0,max||8).forEach(function(t){h+=row(t,cls);}); if(arr.length>(max||8))h+='<div class="standup-empty">+ '+(arr.length-(max||8))+' more...</div>'; return h+'</div>'; }
+    var h='<div class="standup-card"><div class="standup-name"><div class="standup-avatar" style="background:'+color+'">'+initials+'</div>'+escHtml(name)+'</div>';
+    h+='<div class="standup-counts">';
+    if(inProg.length)  h+='<span class="standup-stat blue">🔄 '+inProg.length+' In Progress</span>';
+    if(blocked.length) h+='<span class="standup-stat red">🚨 '+blocked.length+' Blocked</span>';
+    if(done.length)    h+='<span class="standup-stat green">✅ '+done.length+' Complete</span>';
+    if(pending.length) h+='<span class="standup-stat purple">⏳ '+pending.length+' Pending</span>';
+    if(!inProg.length&&!blocked.length&&!done.length&&!pending.length) h+='<span class="standup-stat">ไม่มีงาน</span>';
+    h+='</div>';
+    h+=sec('🚨 Blocked — ต้องแก้ไข',blocked,'blocked');
+    h+=sec('🔄 กำลังทำ (In Progress)',inProg,'inprog');
+    h+=sec('⏳ รอ Review',pending,'pending',5);
+    if(dueToday.length){h+='<div class="standup-section"><div class="standup-section-title">📅 ครบกำหนดวันนี้</div>'; dueToday.forEach(function(t){h+=row(t,t.status==='Blocked'?'blocked':t.status==='In Progress'?'inprog':'');}); h+='</div>';}
+    h+=sec('✅ สำเร็จแล้ว',done,'done',5);
+    if(!inProg.length&&!blocked.length&&!pending.length&&!done.length) h+='<div class="standup-empty">ไม่มีงาน assigned</div>';
+    h+='</div>';
+    grid.innerHTML+=h;
+  });
+}
+function escHtml(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 
 /* ── Main ── */
 async function main() {

@@ -640,66 +640,110 @@ function renderPhase(tasks) {
 }
 function renderAssigneeChart(tasks) {
   destroyChart('assignee');
-  var counts={}, done={}, blocked={};
+  // Collect per-assignee status counts
+  var statuses = ['In Progress','Blocked','Pending Review','Not Start'];
+  var data = {};
   tasks.forEach(function(t){
     (t.assignees||[]).forEach(function(n){
-      if(!counts[n]) { counts[n]=0; done[n]=0; blocked[n]=0; }
-      if(t.status!=='Complete') counts[n]++;
-      if(t.status==='Complete') done[n]++;
-      if(t.status==='Blocked')  blocked[n]++;
+      if(n==='Unknown') return;
+      if(!data[n]) data[n] = {'In Progress':0,'Blocked':0,'Pending Review':0,'Not Start':0,'Complete':0,'total':0};
+      var s = t.status||'Not Start';
+      if(s==='Complete') { data[n]['Complete']++; }
+      else {
+        data[n]['total']++;
+        if(s==='In Progress')        data[n]['In Progress']++;
+        else if(s==='Blocked')       data[n]['Blocked']++;
+        else if(s&&s.includes('Pending')) data[n]['Pending Review']++;
+        else                         data[n]['Not Start']++;
+      }
     });
   });
-  var L=Object.keys(counts).filter(function(n){ return n!=='Unknown'; });
+  var L = Object.keys(data).sort(function(a,b){ return data[b].total - data[a].total; });
   if(!L.length) return;
-  charts.assignee=new Chart(document.getElementById('c-assignee'),{
+
+  var colors = {'In Progress':'#3b82f6','Blocked':'#ef4444','Pending Review':'#a855f7','Not Start':'#cbd5e1'};
+
+  charts.assignee = new Chart(document.getElementById('c-assignee'),{
     type:'bar',
     data:{
-      labels:L,
-      datasets:[{
-        label:'Active',
-        data:L.map(function(l){return counts[l];}),
-        backgroundColor:['#3b82f6','#22c55e','#f97316','#a855f7','#ef4444'],
-        borderRadius:5, borderSkipped:false
-      }]
+      labels: L,
+      datasets: statuses.map(function(s){
+        return {
+          label: s,
+          data: L.map(function(n){ return data[n][s]||0; }),
+          backgroundColor: colors[s],
+          borderRadius: s==='Not Start' ? 4 : 0,
+          borderSkipped: false,
+          stack: 'stack'
+        };
+      })
     },
     options:{
       responsive:true, maintainAspectRatio:false,
       plugins:{
-        legend:{display:false},
-        tooltip:{callbacks:{
-          label:function(c){
-            var n=c.label;
-            return [
-              ' Active: '+counts[n],
-              ' Complete: '+done[n],
-              ' Blocked: '+(blocked[n]||0)
-            ];
+        legend:{
+          display:true,
+          position:'bottom',
+          labels:{font:{size:11},padding:10,boxWidth:12,
+            filter:function(item){ return item.text !== 'Not Start' || L.some(function(n){return (data[n]['Not Start']||0)>0;}); }
           }
-        }}
+        },
+        tooltip:{
+          callbacks:{
+            title:function(items){ return items[0].label; },
+            label:function(c){
+              if(!c.raw) return null;
+              return ' '+c.dataset.label+': '+c.raw;
+            },
+            afterBody:function(items){
+              var n = items[0].label;
+              var total = data[n].total;
+              var complete = data[n].Complete||0;
+              return ['──────────','Total active: '+total,'Complete: '+complete];
+            }
+          }
+        }
       },
       scales:{
-        x:{ticks:{font:{size:13}}},
-        y:{ticks:{font:{size:11},stepSize:1},grid:{color:'#f1f5f9'},
-           suggestedMax: Math.max.apply(null,L.map(function(l){return counts[l];})) + 3}
+        x:{ticks:{font:{size:13}},stacked:true,grid:{display:false}},
+        y:{ticks:{font:{size:11},stepSize:1},stacked:true,grid:{color:'#f1f5f9'}}
       }
     },
     plugins:[{
-      id:'datalabels',
+      id:'totalLabels',
       afterDatasetsDraw:function(chart){
         var ctx=chart.ctx;
+        var totals={};
+        var topY={};
         chart.data.datasets.forEach(function(ds,di){
           var meta=chart.getDatasetMeta(di);
+          if(meta.hidden) return;
           meta.data.forEach(function(bar,i){
-            var val=ds.data[i];
+            var val=ds.data[i]||0;
             if(!val) return;
-            ctx.save();
-            ctx.fillStyle='#1e293b';
-            ctx.font='bold 13px -apple-system,sans-serif';
-            ctx.textAlign='center';
-            ctx.textBaseline='bottom';
-            ctx.fillText(val, bar.x, bar.y-3);
-            ctx.restore();
+            var n=chart.data.labels[i];
+            totals[i]=(totals[i]||0)+val;
+            topY[i]=bar.y; // track top of last visible bar
           });
+        });
+        Object.keys(totals).forEach(function(i){
+          var total=totals[i];
+          if(!total) return;
+          var bar=chart.getDatasetMeta(chart.data.datasets.length-1).data[i];
+          // find actual top bar
+          var minY=Infinity;
+          chart.data.datasets.forEach(function(ds,di){
+            var meta=chart.getDatasetMeta(di);
+            if(meta.hidden||!ds.data[i]) return;
+            if(meta.data[i].y < minY) minY=meta.data[i].y;
+          });
+          ctx.save();
+          ctx.fillStyle='#1e293b';
+          ctx.font='bold 13px -apple-system,sans-serif';
+          ctx.textAlign='center';
+          ctx.textBaseline='bottom';
+          ctx.fillText(total, bar.x, minY-3);
+          ctx.restore();
         });
       }
     }]

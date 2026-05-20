@@ -65,6 +65,12 @@
     .nav-tab.active { background:white; color:#1e3a8a; }
     .nav-tab:hover:not(.active) { background:rgba(255,255,255,.15); color:white; }
 
+    /* ── Assignee chart wrap ── */
+    #assignee-wrap { position:relative; height:240px; }
+    .assignee-legend { display:flex; gap:12px; flex-wrap:wrap; margin-top:8px; padding:0 4px; }
+    .assignee-legend-item { display:flex; align-items:center; gap:5px; font-size:11px; color:#475569; }
+    .assignee-legend-dot { width:10px; height:10px; border-radius:2px; flex-shrink:0; }
+
     /* ── Standup view ── */
     #standup-view { display:none; padding:20px 28px; }
     .standup-date { font-size:15px; font-weight:700; color:#1e293b; margin-bottom:16px; }
@@ -337,7 +343,13 @@
       </div>
       <div class="card">
         <div class="card-title">Active Tasks by Assignee</div>
-        <div style="position:relative;height:260px"><canvas id="c-assignee"></canvas></div>
+        <div id="assignee-wrap"><canvas id="c-assignee"></canvas></div>
+        <div class="assignee-legend">
+          <div class="assignee-legend-item"><div class="assignee-legend-dot" style="background:#3b82f6"></div>In Progress</div>
+          <div class="assignee-legend-item"><div class="assignee-legend-dot" style="background:#ef4444"></div>Blocked</div>
+          <div class="assignee-legend-item"><div class="assignee-legend-dot" style="background:#a855f7"></div>Pending Review</div>
+          <div class="assignee-legend-item"><div class="assignee-legend-dot" style="background:#cbd5e1"></div>Not Start</div>
+        </div>
       </div>
     </div>
 
@@ -682,11 +694,7 @@ function renderAssigneeChart(tasks) {
       responsive:true, maintainAspectRatio:false,
       plugins:{
         legend:{
-          display:true,
-          position:'bottom',
-          labels:{font:{size:11},padding:10,boxWidth:12,
-            filter:function(item){ return item.text !== 'Not Start' || L.some(function(n){return (data[n]['Not Start']||0)>0;}); }
-          }
+          display:false
         },
         tooltip:{
           callbacks:{
@@ -706,7 +714,7 @@ function renderAssigneeChart(tasks) {
       },
       scales:{
         x:{ticks:{font:{size:13}},stacked:true,grid:{display:false}},
-        y:{ticks:{font:{size:11},stepSize:1},stacked:true,grid:{color:'#f1f5f9'},grace:'30%',beginAtZero:true}
+        y:{ticks:{font:{size:11},stepSize:1},stacked:true,grid:{color:'#f1f5f9'},beginAtZero:true,suggestedMax:Math.max.apply(null,L.map(function(n){return data[n].total||0;}))+6}
       }
     },
     plugins:[{

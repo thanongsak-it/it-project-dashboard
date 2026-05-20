@@ -67,7 +67,7 @@
 
     /* ── Assignee chart wrap ── */
     #assignee-wrap { position:relative; height:240px; }
-    .assignee-legend { display:flex; gap:12px; flex-wrap:wrap; margin-top:8px; padding:0 4px; }
+    .assignee-legend { display:flex; gap:12px; flex-wrap:wrap; margin-top:8px; padding:0 4px; justify-content:center; }
     .assignee-legend-item { display:flex; align-items:center; gap:5px; font-size:11px; color:#475569; }
     .assignee-legend-dot { width:10px; height:10px; border-radius:2px; flex-shrink:0; }
 
@@ -713,7 +713,7 @@ function renderAssigneeChart(tasks) {
         }
       },
       scales:{
-        x:{ticks:{font:{size:13}},stacked:true,grid:{display:false}},
+        x:{ticks:{font:{size:13,weight:"bold"},color:function(ctx){return AVATAR_COLORS[ctx.index%AVATAR_COLORS.length];}},stacked:true,grid:{display:false}},
         y:{ticks:{font:{size:11},stepSize:1},stacked:true,grid:{color:'#f1f5f9'},beginAtZero:true,suggestedMax:Math.max.apply(null,L.map(function(n){return data[n].total||0;}))+6}
       }
     },
